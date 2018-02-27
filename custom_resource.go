@@ -71,7 +71,7 @@ func (c CustomResource) Kind() string {
 func TypeName(o interface{}) string {
 	val := reflect.ValueOf(o)
 
-	name := ""
+	var name string
 	switch val.Kind() {
 	case reflect.Ptr:
 		name = val.Elem().Type().Name()
