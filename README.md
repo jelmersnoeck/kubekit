@@ -9,4 +9,5 @@ Controllers.
 
 ## Roadmap
 
+- Don't hardpin k8s on 1.9.3
 - Full Custom Controller example
