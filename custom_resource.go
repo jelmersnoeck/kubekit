@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -65,6 +67,26 @@ func (c CustomResource) GroupVersionKind() schema.GroupVersionKind {
 // Kind returns the Type Name of the CustomResource Object.
 func (c CustomResource) Kind() string {
 	return TypeName(c.Object)
+}
+
+// Definition returns the CustomResourceDefinition that is linked to this
+// CustomResource.
+func (c CustomResource) Definition() *apiextv1beta1.CustomResourceDefinition {
+	return &apiextv1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: c.FullName(),
+		},
+		Spec: apiextv1beta1.CustomResourceDefinitionSpec{
+			Group:   c.Group,
+			Version: c.Version,
+			Scope:   c.Scope,
+			Names: apiextv1beta1.CustomResourceDefinitionNames{
+				Plural:     c.Plural,
+				ShortNames: c.Aliases,
+				Kind:       c.Kind(),
+			},
+		},
+	}
 }
 
 // TypeName returns the Type Name of a given object.
