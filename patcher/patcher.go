@@ -8,6 +8,8 @@ import (
 	"log"
 	"time"
 
+	kerrors "github.com/jelmersnoeck/kubekit/errors"
+
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -120,14 +122,14 @@ func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) error {
 				return nil
 			}
 
-			return ErrCreateNotAllowed
+			return kerrors.ErrCreateNotAllowed
 		}
 
 		if cfg.AllowUpdate {
 			return op.patch(info.Object, modified)
 		}
 
-		return ErrUpdateNotAllowed
+		return kerrors.ErrUpdateNotAllowed
 	})
 }
 

@@ -1,7 +1,5 @@
 package patcher
 
-import "errors"
-
 // Config represents a set of options that can be passed into an Apply action.
 type Config struct {
 	// AllowCreate specifies wether or not we should be able to create the
@@ -57,16 +55,6 @@ var defaultOptions = &Config{
 	Validation:  true,
 	Retries:     5,
 }
-
-var (
-	// ErrCreateNotAllowed is used for when AllowCreate is disabled and a create
-	// action is performed.
-	ErrCreateNotAllowed = errors.New("Creating an object is not allowed with the current configuration")
-
-	// ErrUpdateNotAllowed is used for when AllowUpdate is disabled and a update
-	// action is performed.
-	ErrUpdateNotAllowed = errors.New("Updating an object is not allowed with the current configuration")
-)
 
 // OptionFunc represents a function that can be used to set options for the
 // Apply command.
