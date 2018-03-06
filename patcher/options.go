@@ -11,7 +11,7 @@ type Config struct {
 	// function only performs updates, not creates.
 	// This does not count towards the `Force` option, where we'll delete and
 	// re-create an object if there is an error on updating it.
-	// Defaults to true
+	// Defaults to `true`
 	AllowCreate bool
 
 	// AllowUpdate specifies wether or not we should be able to perform updates.
@@ -19,24 +19,32 @@ type Config struct {
 	// a patch is sent, Kubekit will return an error.
 	// Disabling this could be useful to ensure the `OnCreate` CRD Handler
 	// function only performs create actions.
-	// Defaults to true
+	// Defaults to `true`
 	AllowUpdate bool
+
+	// DeleteFirst enforces us to delete the resource on the server first before
+	// trying to patch it. This enforces creating a new resource.
+	// This option is provided to enable replacing specific resources like
+	// PodDisruptionBudget. These resources can't be updated and need to be
+	// recreated to reconfigure.
+	// Defaults to `false`
+	DeleteFirst bool
 
 	// Force allows Kubekit to delete and re-create the object when there is an
 	// error applying the patch.
 	// This can come in handy for objects that don't allow updating, like
 	// PodDisruptionBudget.
-	// Defaults to false.
+	// Defaults to `false`
 	Force bool
 
 	// Validation enables the schema validation before sending it off to the
 	// server.
-	// Defaults to false.
+	// Defaults to `false`
 	Validation bool
 
 	// Retries resembles the amount of retries we'll execute when we encounter
 	// an error applying a patch.
-	// Defaults to 5.
+	// Defaults to `5`
 	Retries int
 
 	name string
@@ -125,6 +133,16 @@ func WithForce() OptionFunc {
 func WithRetries(i int) OptionFunc {
 	return func(c *Config) {
 		c.Retries = i
+	}
+}
+
+// WithDeleteFirst will enforce deleting the resource on the server first before
+// attempting to update it. This option is provided to enable replacing specific
+// resources like PodDisruptionBudget. These resources can't be updated and need
+// to be recreated to reconfigure.
+func WithDeleteFirst() OptionFunc {
+	return func(c *Config) {
+		c.DeleteFirst = true
 	}
 }
 

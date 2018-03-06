@@ -75,6 +75,24 @@ func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) error {
 			return err
 		}
 
+		op := &objectPatcher{
+			cfg:           cfg,
+			namespace:     info.Namespace,
+			name:          info.Name,
+			mapping:       info.Mapping,
+			helper:        newHelper(info),
+			encoder:       encoder,
+			decoder:       p.Decoder(false),
+			clientsetFunc: p.Factory.ClientSet,
+		}
+
+		if cfg.DeleteFirst {
+			glog.V(4).Infof("Forcing deletion of %s before applying", info.Name)
+			if err := op.delete(); err != nil {
+				glog.V(4).Infof("Error deleting the object for %s: %s", info.Name, err)
+			}
+		}
+
 		// Load the current object that is available on the server into our Info
 		// object.
 		if err := info.Get(); err != nil {
@@ -106,17 +124,6 @@ func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) error {
 		}
 
 		if cfg.AllowUpdate {
-			op := &objectPatcher{
-				cfg:           cfg,
-				namespace:     info.Namespace,
-				name:          info.Name,
-				mapping:       info.Mapping,
-				helper:        newHelper(info),
-				encoder:       encoder,
-				decoder:       p.Decoder(false),
-				clientsetFunc: p.Factory.ClientSet,
-			}
-
 			return op.patch(info.Object, modified)
 		}
 
