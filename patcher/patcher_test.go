@@ -7,12 +7,33 @@ import (
 	"github.com/jelmersnoeck/kubekit/patcher"
 )
 
-func TestPatchResource(t *testing.T) {
+func TestPatcher_Apply(t *testing.T) {
 	t.Run("without object to apply", func(t *testing.T) {
 		p := patcher.New("test", nil)
 
-		if err := p.Apply(nil); !errors.IsNoObjectGiven(err) {
+		if _, err := p.Apply(nil); !errors.IsNoObjectGiven(err) {
 			t.Errorf("Expected error to be of type `errors.ErrNoObjectGiven`, got %T", err)
 		}
 	})
+}
+
+func TestIsEmptyPatch(t *testing.T) {
+	data := []struct {
+		data []byte
+		exp  bool
+	}{
+		{[]byte("{}"), true},
+		{[]byte("{\"metadata\":{\"creationTimestamp\":null}}"), true},
+		{[]byte("foo"), false},
+	}
+
+	for _, b := range data {
+		if patcher.IsEmptyPatch(b.data) != b.exp {
+			exp := ""
+			if !b.exp {
+				exp = "not "
+			}
+			t.Errorf("Expected '%s' %sto be EmptyPatch", string(b.data), exp)
+		}
+	}
 }

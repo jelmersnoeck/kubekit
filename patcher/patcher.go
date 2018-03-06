@@ -60,44 +60,28 @@ func New(name string, f Factory, opts ...OptionFunc) *Patcher {
 // unless otherwise specified.
 // By using apply, Kubekit will annotate the resource on the server to keep
 // track of applied changes so it can perform a three-way merge.
-func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) error {
+func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) ([]byte, error) {
 	if obj == nil {
-		return kerrors.ErrNoObjectGiven
+		return nil, kerrors.ErrNoObjectGiven
 	}
 
 	cfg := NewFromConfig(p.cfg, opts...)
 
 	r, err := NewResult(cfg, p.Factory, obj)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	encoder := p.JSONEncoder()
-	return r.Visit(func(info *resource.Info, err error) error {
+	var patch []byte
+	err = r.Visit(func(info *resource.Info, err error) error {
 		// Get the modified configuration of the object.
 		modified, err := GetModifiedConfiguration(p.cfg.name, info, true, encoder)
 		if err != nil {
 			glog.V(4).Infof("Error getting the modified configuration for %s: %s", info.Name, err)
 			return err
 		}
-
-		op := &objectPatcher{
-			cfg:           cfg,
-			namespace:     info.Namespace,
-			name:          info.Name,
-			mapping:       info.Mapping,
-			helper:        newHelper(info),
-			encoder:       encoder,
-			decoder:       p.Decoder(false),
-			clientsetFunc: p.Factory.ClientSet,
-		}
-
-		if cfg.DeleteFirst {
-			glog.V(4).Infof("Forcing deletion of %s before applying", info.Name)
-			if err := op.delete(); err != nil {
-				glog.V(4).Infof("Error deleting the object for %s: %s", info.Name, err)
-			}
-		}
+		patch = modified
 
 		// Load the current object that is available on the server into our Info
 		// object.
@@ -130,11 +114,35 @@ func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) error {
 		}
 
 		if cfg.AllowUpdate {
-			return op.patch(info.Object, modified)
+			op := &objectPatcher{
+				cfg:           cfg,
+				namespace:     info.Namespace,
+				name:          info.Name,
+				mapping:       info.Mapping,
+				helper:        newHelper(info),
+				encoder:       encoder,
+				decoder:       p.Decoder(false),
+				clientsetFunc: p.Factory.ClientSet,
+			}
+
+			patch, err = op.patch(info.Object, modified)
+			return err
 		}
 
 		return kerrors.ErrUpdateNotAllowed
 	})
+
+	return patch, err
+}
+
+// IsEmptyPatch looks at the contents of a patch to see wether or not it is an
+// empty patch and could thus potentially be skipped.
+func IsEmptyPatch(patch []byte) bool {
+	if string(patch) == "{\"metadata\":{\"creationTimestamp\":null}}" || string(patch) == "{}" {
+		return true
+	}
+
+	return false
 }
 
 type objectPatcher struct {
@@ -151,13 +159,13 @@ type objectPatcher struct {
 	clientsetFunc func() (internalclientset.Interface, error)
 }
 
-func (p *objectPatcher) patchSimple(obj runtime.Object, modified []byte) error {
+func (p *objectPatcher) patchSimple(obj runtime.Object, modified []byte) ([]byte, error) {
 	// Load the original configuration from the annotation that we've set up
 	// in the object that is currently on the server.
 	original, err := GetOriginalConfiguration(p.cfg.name, p.mapping, obj)
 	if err != nil {
 		glog.V(4).Infof("Error getting the original configuration for %s: %s", p.name, err)
-		return err
+		return nil, err
 	}
 
 	// Load the current object as a JSON structure from the Object we've
@@ -165,12 +173,12 @@ func (p *objectPatcher) patchSimple(obj runtime.Object, modified []byte) error {
 	current, err := runtime.Encode(p.encoder, obj)
 	if err != nil {
 		glog.V(4).Infof("Error encoding the current object for %s: %s", p.name, err)
-		return err
+		return nil, err
 	}
 
 	versionedObject, err := scheme.Scheme.New(p.mapping.GroupVersionKind)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var patchType types.PatchType
@@ -193,19 +201,19 @@ func (p *objectPatcher) patchSimple(obj runtime.Object, modified []byte) error {
 		)
 		if err != nil {
 			if mergepatch.IsPreconditionFailed(err) {
-				return fmt.Errorf("%s", "At least one of apiVersion, kind and name was changed")
+				return nil, fmt.Errorf("%s", "At least one of apiVersion, kind and name was changed")
 			}
 
-			return err
+			return nil, err
 		}
 	case err != nil:
-		return err
+		return nil, err
 	case err == nil:
 		patchType = types.StrategicMergePatchType
 
 		lookupPatchMeta, err = strategicpatch.NewPatchMetaFromStruct(versionedObject)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		patch, err = strategicpatch.CreateThreeWayMergePatch(
@@ -216,16 +224,20 @@ func (p *objectPatcher) patchSimple(obj runtime.Object, modified []byte) error {
 			true,
 		)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
+	if IsEmptyPatch(patch) {
+		return patch, nil
+	}
+
 	_, err = p.helper.Patch(p.namespace, p.name, patchType, patch)
-	return err
+	return patch, err
 }
 
-func (p *objectPatcher) patch(current runtime.Object, modified []byte) error {
-	err := p.patchSimple(current, modified)
+func (p *objectPatcher) patch(current runtime.Object, modified []byte) ([]byte, error) {
+	patch, err := p.patchSimple(current, modified)
 	var getErr error
 	for i := 1; i <= p.cfg.Retries && errors.IsConflict(err); i++ {
 		// perform exponential backoff.
@@ -235,23 +247,26 @@ func (p *objectPatcher) patch(current runtime.Object, modified []byte) error {
 		// backoff, refresh.
 		current, getErr = p.helper.Get(p.namespace, p.name, false)
 		if getErr != nil {
-			return err
+			return nil, err
 		}
 
-		err = p.patchSimple(current, modified)
+		patch, err = p.patchSimple(current, modified)
 	}
 
 	if err != nil && errors.IsConflict(err) && p.cfg.Force {
-		// delete and recreate
-		err = p.deleteAndCreate(current, modified)
+		patch, err = p.deleteAndCreate(current, modified)
 	}
 
-	return err
+	if err != nil && !IsEmptyPatch(patch) && p.cfg.DeleteFirst {
+		patch, err = p.deleteAndCreate(current, modified)
+	}
+
+	return patch, err
 }
 
-func (p *objectPatcher) deleteAndCreate(original runtime.Object, modified []byte) error {
+func (p *objectPatcher) deleteAndCreate(original runtime.Object, modified []byte) ([]byte, error) {
 	if err := p.delete(); err != nil {
-		return err
+		return modified, err
 	}
 
 	err := wait.PollImmediate(kubectl.Interval, 0, func() (bool, error) {
@@ -262,16 +277,20 @@ func (p *objectPatcher) deleteAndCreate(original runtime.Object, modified []byte
 	})
 
 	if err != nil {
-		return err
+		return modified, err
 	}
 
+	return p.create(modified)
+}
+
+func (p *objectPatcher) create(modified []byte) ([]byte, error) {
 	versionedObject, _, err := p.decoder.Decode(modified, nil, nil)
 	if err != nil {
-		return err
+		return modified, err
 	}
 
 	_, err = p.helper.Create(p.namespace, true, versionedObject)
-	return err
+	return modified, err
 }
 
 func (p *objectPatcher) delete() error {
