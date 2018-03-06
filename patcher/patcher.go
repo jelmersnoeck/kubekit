@@ -61,6 +61,10 @@ func New(name string, f Factory, opts ...OptionFunc) *Patcher {
 // By using apply, Kubekit will annotate the resource on the server to keep
 // track of applied changes so it can perform a three-way merge.
 func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) error {
+	if obj == nil {
+		return kerrors.ErrNoObjectGiven
+	}
+
 	cfg := NewFromConfig(p.cfg, opts...)
 
 	r, err := NewResult(cfg, p.Factory, obj)

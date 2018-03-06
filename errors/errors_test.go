@@ -7,15 +7,14 @@ import (
 	"github.com/jelmersnoeck/kubekit/errors"
 )
 
-type errCheck func(error) bool
-
 func TestErrors(t *testing.T) {
 	errs := []struct {
-		check errCheck
+		check func(error) bool
 		err   error
 	}{
 		{errors.IsCreateNotAllowed, errors.ErrCreateNotAllowed},
 		{errors.IsUpdateNotAllowed, errors.ErrUpdateNotAllowed},
+		{errors.IsNoObjectGiven, errors.ErrNoObjectGiven},
 	}
 
 	for _, err := range errs {

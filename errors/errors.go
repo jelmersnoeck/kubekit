@@ -10,6 +10,9 @@ var (
 	// ErrUpdateNotAllowed is used for when AllowUpdate is disabled and a update
 	// action is performed.
 	ErrUpdateNotAllowed = errors.New("Updating an object is not allowed with the current configuration")
+
+	// ErrNoObjectGiven is used when apply is called with a nil object.
+	ErrNoObjectGiven = errors.New("`nil` object given, can't apply")
 )
 
 // IsCreateNotAllowed will return wether or not the provided error equals
@@ -22,6 +25,12 @@ func IsCreateNotAllowed(err error) bool {
 // ErrUpdateNotAllowed.
 func IsUpdateNotAllowed(err error) bool {
 	return errEquals(ErrUpdateNotAllowed, err)
+}
+
+// IsNoObjectGiven will return wether or not the provided error equals
+// ErrNoObjectGiven.
+func IsNoObjectGiven(err error) bool {
+	return errEquals(ErrNoObjectGiven, err)
 }
 
 func errEquals(expected, actual error) bool {

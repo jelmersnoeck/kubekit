@@ -3,18 +3,16 @@ package patcher_test
 import (
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/jelmersnoeck/kubekit/errors"
+	"github.com/jelmersnoeck/kubekit/patcher"
 )
 
 func TestPatchResource(t *testing.T) {
-}
+	t.Run("without object to apply", func(t *testing.T) {
+		p := patcher.New("test", nil)
 
-func svc(name, ns string) *corev1.Service {
-	return &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
-		},
-	}
+		if err := p.Apply(nil); !errors.IsNoObjectGiven(err) {
+			t.Errorf("Expected error to be of type `errors.ErrNoObjectGiven`, got %T", err)
+		}
+	})
 }
