@@ -15,13 +15,14 @@ import (
 // CustomResource describes the configuration values for a
 // CustomResourceDefinition.
 type CustomResource struct {
-	Name    string
-	Plural  string
-	Group   string
-	Version string
-	Aliases []string
-	Scope   v1beta1.ResourceScope
-	Object  runtime.Object
+	Name       string
+	Plural     string
+	Group      string
+	Version    string
+	Aliases    []string
+	Scope      v1beta1.ResourceScope
+	Object     runtime.Object
+	Validation *v1beta1.CustomResourceValidation
 }
 
 // GetName returns the CustomResource Name. If no name is specified, the
@@ -85,6 +86,7 @@ func (c CustomResource) Definition() *apiextv1beta1.CustomResourceDefinition {
 				ShortNames: c.Aliases,
 				Kind:       c.Kind(),
 			},
+			Validation: c.Validation,
 		},
 	}
 }
