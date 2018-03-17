@@ -967,6 +967,7 @@
     "pkg/kubectl",
     "pkg/kubectl/apps",
     "pkg/kubectl/categories",
+    "pkg/kubectl/cmd/util/openapi",
     "pkg/kubectl/resource",
     "pkg/kubectl/util",
     "pkg/kubectl/util/hash",
@@ -1023,6 +1024,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c89d208555bb9a95cf7d7f5646066a0cde6f5429192e73e084a136c28bea76f9"
+  inputs-digest = "f10dd5cbfc61d559f3a5517eb37b3bc0aa965c126fc0307d8a58a0a2ad6fbd5d"
   solver-name = "gps-cdcl"
   solver-version = 1
