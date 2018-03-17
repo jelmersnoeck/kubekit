@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/jsonmergepatch"
 	"k8s.io/apimachinery/pkg/util/mergepatch"
@@ -22,6 +23,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/kubectl"
+	"k8s.io/kubernetes/pkg/kubectl/cmd/util/openapi"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 	"k8s.io/kubernetes/pkg/kubectl/validation"
 )
@@ -38,6 +40,7 @@ type Factory interface {
 	ClientSet() (internalclientset.Interface, error)
 	JSONEncoder() runtime.Encoder
 	Decoder(bool) runtime.Decoder
+	OpenAPISchema() (openapi.Resources, error)
 }
 
 // Patcher represents the PatcherObject which is responsible for applying
@@ -68,6 +71,11 @@ func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) ([]byte, error) 
 	cfg := NewFromConfig(p.cfg, opts...)
 
 	r, err := NewResult(cfg, p.Factory, obj)
+	if err != nil {
+		return nil, err
+	}
+
+	os, err := p.OpenAPISchema()
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +131,7 @@ func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) ([]byte, error) 
 				encoder:       encoder,
 				decoder:       p.Decoder(false),
 				clientsetFunc: p.Factory.ClientSet,
+				openapiSchema: os,
 			}
 
 			patch, err = op.patch(info.Object, modified)
@@ -157,6 +166,7 @@ type objectPatcher struct {
 	mapping       *meta.RESTMapping
 	helper        *resource.Helper
 	clientsetFunc func() (internalclientset.Interface, error)
+	openapiSchema openapi.Resources
 }
 
 func (p *objectPatcher) patchSimple(obj runtime.Object, modified []byte) ([]byte, error) {
@@ -183,7 +193,6 @@ func (p *objectPatcher) patchSimple(obj runtime.Object, modified []byte) ([]byte
 
 	var patchType types.PatchType
 	var patch []byte
-	var lookupPatchMeta strategicpatch.LookupPatchMeta
 
 	switch {
 	case runtime.IsNotRegisteredError(err):
@@ -210,19 +219,7 @@ func (p *objectPatcher) patchSimple(obj runtime.Object, modified []byte) ([]byte
 		return nil, err
 	case err == nil:
 		patchType = types.StrategicMergePatchType
-
-		lookupPatchMeta, err = strategicpatch.NewPatchMetaFromStruct(versionedObject)
-		if err != nil {
-			return nil, err
-		}
-
-		patch, err = strategicpatch.CreateThreeWayMergePatch(
-			original,
-			modified,
-			current,
-			lookupPatchMeta,
-			true,
-		)
+		patch, err = strategicMergePatch(p.openapiSchema, p.mapping.GroupVersionKind, versionedObject, original, modified, current)
 		if err != nil {
 			return nil, err
 		}
@@ -326,4 +323,46 @@ func createAndRefresh(info *resource.Info) error {
 
 func newHelper(info *resource.Info) *resource.Helper {
 	return resource.NewHelper(info.Client, info.Mapping)
+}
+
+func strategicMergePatch(schema openapi.Resources, gvk schema.GroupVersionKind, obj runtime.Object, original, modified, current []byte) ([]byte, error) {
+	patch, err := openapiPatch(schema, gvk, original, modified, current)
+
+	// no need to return the error, we'll try a regular patch if this fails
+	if err != nil {
+		log.Printf("warning: error calculating patch from openapi spec: %v\n", err)
+	}
+
+	if patch != nil {
+		return patch, nil
+	}
+
+	return strategicPatch(obj, original, modified, current)
+}
+
+func openapiPatch(schema openapi.Resources, gvk schema.GroupVersionKind, original, modified, current []byte) ([]byte, error) {
+	if schema == nil {
+		return nil, nil
+	}
+
+	os := schema.LookupResource(gvk)
+	if os == nil {
+		return nil, nil
+	}
+
+	lookupPatchMeta := strategicpatch.PatchMetaFromOpenAPI{Schema: os}
+	return threeWayMergePatch(original, modified, current, lookupPatchMeta)
+}
+
+func strategicPatch(obj runtime.Object, original, modified, current []byte) ([]byte, error) {
+	lookupPatchMeta, err := strategicpatch.NewPatchMetaFromStruct(obj)
+	if err != nil {
+		return nil, err
+	}
+
+	return threeWayMergePatch(original, modified, current, lookupPatchMeta)
+}
+
+func threeWayMergePatch(original, modified, current []byte, meta strategicpatch.LookupPatchMeta) ([]byte, error) {
+	return strategicpatch.CreateThreeWayMergePatch(original, modified, current, meta, true)
 }
