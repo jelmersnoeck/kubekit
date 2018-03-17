@@ -8,9 +8,9 @@ import (
 	"log"
 	"time"
 
+	"github.com/jelmersnoeck/kubekit"
 	kerrors "github.com/jelmersnoeck/kubekit/errors"
 
-	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -86,7 +86,7 @@ func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) ([]byte, error) 
 		// Get the modified configuration of the object.
 		modified, err := GetModifiedConfiguration(p.cfg.name, info, true, encoder)
 		if err != nil {
-			glog.V(4).Infof("Error getting the modified configuration for %s: %s", info.Name, err)
+			kubekit.Logger.Infof("Error getting the modified configuration for %s: %s", info.Name, err)
 			return err
 		}
 		patch = modified
@@ -95,23 +95,23 @@ func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) ([]byte, error) 
 		// object.
 		if err := info.Get(); err != nil {
 			if !errors.IsNotFound(err) {
-				glog.V(4).Infof("Error getting the server object for %s: %s", info.Name, err)
+				kubekit.Logger.Infof("Error getting the server object for %s: %s", info.Name, err)
 				return err
 			}
 
 			if cfg.AllowCreate {
 				// Apply annotations to the object so we can track future changes.
 				if err := CreateApplyAnnotation(p.cfg.name, info, encoder); err != nil {
-					glog.V(4).Infof("Error creating apply annotations for %s: %s", info.Name, err)
+					kubekit.Logger.Infof("Error creating apply annotations for %s: %s", info.Name, err)
 					return err
 				}
 				if err := createAndRefresh(info); err != nil {
-					glog.V(4).Infof("Error creating the resource for %s: %s", info.Name, err)
+					kubekit.Logger.Infof("Error creating the resource for %s: %s", info.Name, err)
 					return err
 				}
 
 				if _, err := info.Mapping.UID(info.Object); err != nil {
-					glog.V(4).Infof("Error getting a UID for %s: %s", info.Name, err)
+					kubekit.Logger.Infof("Error getting a UID for %s: %s", info.Name, err)
 					return err
 				}
 
@@ -174,7 +174,7 @@ func (p *objectPatcher) patchSimple(obj runtime.Object, modified []byte) ([]byte
 	// in the object that is currently on the server.
 	original, err := GetOriginalConfiguration(p.cfg.name, p.mapping, obj)
 	if err != nil {
-		glog.V(4).Infof("Error getting the original configuration for %s: %s", p.name, err)
+		kubekit.Logger.Infof("Error getting the original configuration for %s: %s", p.name, err)
 		return nil, err
 	}
 
@@ -182,7 +182,7 @@ func (p *objectPatcher) patchSimple(obj runtime.Object, modified []byte) ([]byte
 	// previously loaded from the server.
 	current, err := runtime.Encode(p.encoder, obj)
 	if err != nil {
-		glog.V(4).Infof("Error encoding the current object for %s: %s", p.name, err)
+		kubekit.Logger.Infof("Error encoding the current object for %s: %s", p.name, err)
 		return nil, err
 	}
 

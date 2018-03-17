@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/golang/glog"
 	"github.com/jelmersnoeck/kubekit"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -48,26 +47,26 @@ func (r Result) Visit(fn resource.VisitorFunc) error {
 func NewResult(cfg *Config, factory Factory, obj runtime.Object) (Result, error) {
 	mapping, err := RestMappingForObject(factory, obj)
 	if err != nil {
-		glog.V(4).Infof("Error getting restmapping for %s: %s", kubekit.TypeName(obj))
+		kubekit.Logger.Infof("Error getting restmapping for %s: %s", kubekit.TypeName(obj))
 		return nil, err
 	}
 
 	accessor := mapping.MetadataAccessor
 	namespace, err := accessor.Namespace(obj)
 	if err != nil {
-		glog.V(4).Infof("Error getting namespace for %s: %s", kubekit.TypeName(obj))
+		kubekit.Logger.Infof("Error getting namespace for %s: %s", kubekit.TypeName(obj))
 		return nil, err
 	}
 
 	validationScheme, err := factory.Validator(cfg.Validation)
 	if err != nil {
-		glog.V(4).Infof("Error getting validator for %s: %s", kubekit.TypeName(obj))
+		kubekit.Logger.Infof("Error getting validator for %s: %s", kubekit.TypeName(obj))
 		return nil, err
 	}
 
 	buf := bytes.NewBuffer([]byte{})
 	if err := factory.JSONEncoder().Encode(obj, buf); err != nil {
-		glog.V(4).Infof("Error encoding the giiven object for %s: %s", kubekit.TypeName(obj))
+		kubekit.Logger.Infof("Error encoding the giiven object for %s: %s", kubekit.TypeName(obj))
 		return nil, err
 	}
 
