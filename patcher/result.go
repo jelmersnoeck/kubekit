@@ -47,26 +47,26 @@ func (r Result) Visit(fn resource.VisitorFunc) error {
 func NewResult(cfg *Config, factory Factory, obj runtime.Object) (Result, error) {
 	mapping, err := RestMappingForObject(factory, obj)
 	if err != nil {
-		kubekit.Logger.Infof("Error getting restmapping for %s: %s", kubekit.TypeName(obj))
+		kubekit.Logger.Infof("Error getting restmapping for %s: %s", kubekit.TypeName(obj), err)
 		return nil, err
 	}
 
 	accessor := mapping.MetadataAccessor
 	namespace, err := accessor.Namespace(obj)
 	if err != nil {
-		kubekit.Logger.Infof("Error getting namespace for %s: %s", kubekit.TypeName(obj))
+		kubekit.Logger.Infof("Error getting namespace for %s: %s", kubekit.TypeName(obj), err)
 		return nil, err
 	}
 
 	validationScheme, err := factory.Validator(cfg.Validation)
 	if err != nil {
-		kubekit.Logger.Infof("Error getting validator for %s: %s", kubekit.TypeName(obj))
+		kubekit.Logger.Infof("Error getting validator for %s: %s", kubekit.TypeName(obj), err)
 		return nil, err
 	}
 
 	buf := bytes.NewBuffer([]byte{})
 	if err := factory.JSONEncoder().Encode(obj, buf); err != nil {
-		kubekit.Logger.Infof("Error encoding the giiven object for %s: %s", kubekit.TypeName(obj))
+		kubekit.Logger.Infof("Error encoding the giiven object for %s: %s", kubekit.TypeName(obj), err)
 		return nil, err
 	}
 
