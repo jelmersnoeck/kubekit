@@ -13,6 +13,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -41,6 +42,7 @@ type Factory interface {
 	JSONEncoder() runtime.Encoder
 	Decoder(bool) runtime.Decoder
 	OpenAPISchema() (openapi.Resources, error)
+	ClientForMapping(*meta.RESTMapping) (resource.RESTClient, error)
 }
 
 // Patcher represents the PatcherObject which is responsible for applying
@@ -142,6 +144,39 @@ func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) ([]byte, error) 
 	})
 
 	return patch, err
+}
+
+// Helper returns a new helper which allows for querying objects easily.
+func (p *Patcher) Helper(obj runtime.Object) (*resource.Helper, error) {
+	mapper, typer := p.Object()
+
+	gvks, _, err := typer.ObjectKinds(obj)
+	if err != nil {
+		return nil, err
+	}
+	gvk := gvks[0]
+
+	mp := &resource.Mapper{
+		RESTMapper:   mapper,
+		ObjectTyper:  typer,
+		ClientMapper: p,
+		Decoder:      unstructured.UnstructuredJSONScheme,
+	}
+
+	mapping, err := mp.RESTMapping(schema.GroupKind{
+		Group: gvk.Group,
+		Kind:  gvk.Kind,
+	}, gvk.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := p.ClientForMapping(mapping)
+	if err != nil {
+		return nil, err
+	}
+
+	return resource.NewHelper(client, mapping), nil
 }
 
 // IsEmptyPatch looks at the contents of a patch to see wether or not it is an
