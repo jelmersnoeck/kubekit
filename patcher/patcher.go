@@ -4,8 +4,10 @@
 package patcher
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"reflect"
 	"time"
 
 	"github.com/jelmersnoeck/kubekit"
@@ -144,11 +146,77 @@ func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) ([]byte, error) 
 	return patch, err
 }
 
+// Get fetches the data for a given object in a given namespace with the given
+// name and loads it into the given object.
+func (p *Patcher) Get(obj interface{}, namespace, name string) error {
+	if obj == nil {
+		return kerrors.ErrNoObjectGiven
+	}
+
+	robj, ok := obj.(runtime.Object)
+	if !ok {
+		return kerrors.ErrNoRuntimeObject
+	}
+
+	if reflect.ValueOf(obj).Kind() != reflect.Ptr {
+		return kerrors.ErrNoPointerObject
+	}
+
+	helper, err := p.helper(robj)
+	if err != nil {
+		return err
+	}
+
+	nobj, err := helper.Get(namespace, name, false)
+	if err != nil {
+		return err
+	}
+
+	rawData, err := json.Marshal(nobj)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(rawData, obj)
+}
+
+func (p *Patcher) helper(obj runtime.Object) (*resource.Helper, error) {
+	cfg := NewFromConfig(p.cfg)
+
+	r, err := NewResult(cfg, p.Factory, obj)
+	if err != nil {
+		return nil, err
+	}
+
+	var helper *resource.Helper
+	err = r.Visit(func(info *resource.Info, err error) error {
+		if err != nil {
+			return err
+		}
+
+		helper = newHelper(info)
+		return nil
+	})
+
+	return helper, err
+}
+
 // IsEmptyPatch looks at the contents of a patch to see wether or not it is an
 // empty patch and could thus potentially be skipped.
+// JSONMergePatch doesn't always cleanly merge, so we need to set up a set of
+// rules we can ignore.
 func IsEmptyPatch(patch []byte) bool {
-	if string(patch) == "{\"metadata\":{\"creationTimestamp\":null}}" || string(patch) == "{}" {
-		return true
+	emptySets := []string{
+		"{\"metadata\":{\"creationTimestamp\":null}}",
+		"{}",
+		"{\"metadata\":{\"annotations\":{}}}",
+		"{\"metadata\":{\"labels\":{}}}",
+	}
+	patchString := string(patch)
+	for _, s := range emptySets {
+		if patchString == s {
+			return true
+		}
 	}
 
 	return false
@@ -186,14 +254,10 @@ func (p *objectPatcher) patchSimple(obj runtime.Object, modified []byte) ([]byte
 		return nil, err
 	}
 
-	versionedObject, err := scheme.Scheme.New(p.mapping.GroupVersionKind)
-	if err != nil {
-		return nil, err
-	}
-
 	var patchType types.PatchType
 	var patch []byte
 
+	versionedObject, err := scheme.Scheme.New(p.mapping.GroupVersionKind)
 	switch {
 	case runtime.IsNotRegisteredError(err):
 		patchType = types.MergePatchType

@@ -13,6 +13,13 @@ var (
 
 	// ErrNoObjectGiven is used when apply is called with a nil object.
 	ErrNoObjectGiven = errors.New("`nil` object given, can't apply")
+
+	// ErrNoRuntimeObject is used when a passed through object interface doesn't
+	// match the runtime.Object interface.
+	ErrNoRuntimeObject = errors.New("Object is not of type runtime.Object")
+
+	// ErrNoPointerObject is used when the passed object is not a pointer.
+	ErrNoPointerObject = errors.New("Given object is not a pointer")
 )
 
 // IsCreateNotAllowed will return wether or not the provided error equals
