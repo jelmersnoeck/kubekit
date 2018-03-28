@@ -26,7 +26,17 @@ func CreateCRD(cs clientset.Interface, c CustomResource) error {
 func createCRD(cs clientset.Interface, crd *apiextv1beta1.CustomResourceDefinition) error {
 	_, err := cs.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
 	if apierrors.IsAlreadyExists(err) {
-		return nil
+		currentCRD, err := cs.ApiextensionsV1beta1().CustomResourceDefinitions().Get(crd.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		// TODO(jelmer): figure out a way here to determin if we need to update
+		// the object or not (do a diff between the current crd and the desired
+		// crd).
+		crd.ResourceVersion = currentCRD.ResourceVersion
+		_, err = cs.ApiextensionsV1beta1().CustomResourceDefinitions().Update(crd)
+		return err
 	} else if err != nil {
 		return err
 	}
