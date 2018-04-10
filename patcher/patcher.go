@@ -146,6 +146,34 @@ func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) ([]byte, error) 
 	return patch, err
 }
 
+// Delete will delete the object from the cluster. It will try and do it
+// gracefully, if that's not possible, it will force deletion.
+func (p *Patcher) Delete(obj runtime.Object, opts ...OptionFunc) error {
+	if obj == nil {
+		return kerrors.ErrNoObjectGiven
+	}
+
+	cfg := NewFromConfig(p.cfg, opts...)
+
+	r, err := NewResult(cfg, p.Factory, obj)
+	if err != nil {
+		return err
+	}
+
+	return r.Visit(func(info *resource.Info, err error) error {
+		op := &objectPatcher{
+			cfg:           cfg,
+			namespace:     info.Namespace,
+			name:          info.Name,
+			mapping:       info.Mapping,
+			helper:        newHelper(info),
+			clientsetFunc: p.Factory.ClientSet,
+		}
+
+		return op.delete()
+	})
+}
+
 // Get fetches the data for a given object in a given namespace with the given
 // name and loads it into the given object.
 func (p *Patcher) Get(obj interface{}, namespace, name string) error {
