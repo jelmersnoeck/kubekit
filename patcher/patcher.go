@@ -286,8 +286,14 @@ func (p *objectPatcher) patchSimple(obj runtime.Object, modified []byte) ([]byte
 	var patch []byte
 
 	versionedObject, err := scheme.Scheme.New(p.mapping.GroupVersionKind)
+
+	// CRDs in k8s 1.9+ count as being registered, and so will not have errored.
+	// They are considered unstructured and can't be strategic merge patched,
+	// however. Check for this.
+	_, isUnstructured := versionedObject.(runtime.Unstructured)
+
 	switch {
-	case runtime.IsNotRegisteredError(err):
+	case runtime.IsNotRegisteredError(err), isUnstructured:
 		patchType = types.MergePatchType
 		preconditions := []mergepatch.PreconditionFunc{
 			mergepatch.RequireKeyUnchanged("apiVersion"),
