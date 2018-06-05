@@ -86,7 +86,7 @@ func (p *Patcher) Apply(obj runtime.Object, opts ...OptionFunc) ([]byte, error) 
 	var patch []byte
 	err = r.Visit(func(info *resource.Info, err error) error {
 		// Get the modified configuration of the object.
-		modified, err := GetModifiedConfiguration(p.cfg.name, info, true, encoder)
+		modified, err := GetModifiedConfiguration(p.cfg.name, info, false, encoder)
 		if err != nil {
 			kubekit.Logger.Infof("Error getting the modified configuration for %s: %s", info.Name, err)
 			return err
