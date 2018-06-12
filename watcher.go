@@ -19,12 +19,12 @@ type Watcher struct {
 	rc        *rest.RESTClient
 	namespace string
 	resource  *CustomResource
-	handler   cache.ResourceEventHandlerFuncs
+	handler   cache.ResourceEventHandler
 }
 
 // NewWatcher returns a new watcher that can be used to watch in a given
 // namespace. If namespace is an empty string, all namespaces will be watched.
-func NewWatcher(rc *rest.RESTClient, namespace string, resource *CustomResource, handler cache.ResourceEventHandlerFuncs) *Watcher {
+func NewWatcher(rc *rest.RESTClient, namespace string, resource *CustomResource, handler cache.ResourceEventHandler) *Watcher {
 	return &Watcher{
 		rc:        rc,
 		namespace: namespace,
