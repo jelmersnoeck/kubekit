@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -16,7 +15,7 @@ var ResyncPeriod = 5 * time.Second
 // Watcher represents a CRD Watcher Object. It knows enough details about a CRD
 // to be able to create a controller and watch for changes.
 type Watcher struct {
-	rc        *rest.RESTClient
+	cg        cache.Getter
 	namespace string
 	resource  *CustomResource
 	handler   cache.ResourceEventHandler
@@ -24,9 +23,9 @@ type Watcher struct {
 
 // NewWatcher returns a new watcher that can be used to watch in a given
 // namespace. If namespace is an empty string, all namespaces will be watched.
-func NewWatcher(rc *rest.RESTClient, namespace string, resource *CustomResource, handler cache.ResourceEventHandler) *Watcher {
+func NewWatcher(cg cache.Getter, namespace string, resource *CustomResource, handler cache.ResourceEventHandler) *Watcher {
 	return &Watcher{
-		rc:        rc,
+		cg:        cg,
 		namespace: namespace,
 		resource:  resource,
 		handler:   handler,
@@ -37,7 +36,7 @@ func NewWatcher(rc *rest.RESTClient, namespace string, resource *CustomResource,
 // Kubernetes CacheController.
 func (w *Watcher) Run(done <-chan struct{}) {
 	source := cache.NewListWatchFromClient(
-		w.rc,
+		w.cg,
 		w.resource.Plural,
 		w.namespace,
 		fields.Everything(),
