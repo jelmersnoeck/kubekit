@@ -190,7 +190,7 @@ func (p *Patcher) Get(obj interface{}, namespace, name string) error {
 		return kerrors.ErrNoPointerObject
 	}
 
-	helper, err := p.helper(robj)
+	helper, err := p.getHelper(robj)
 	if err != nil {
 		return err
 	}
@@ -208,8 +208,9 @@ func (p *Patcher) Get(obj interface{}, namespace, name string) error {
 	return json.Unmarshal(rawData, obj)
 }
 
-func (p *Patcher) helper(obj runtime.Object) (*resource.Helper, error) {
+func (p *Patcher) getHelper(obj runtime.Object) (*resource.Helper, error) {
 	cfg := NewFromConfig(p.cfg)
+	cfg.Validation = false // no need to validate the object we're about to write over
 
 	r, err := NewResult(cfg, p.Factory, obj)
 	if err != nil {
